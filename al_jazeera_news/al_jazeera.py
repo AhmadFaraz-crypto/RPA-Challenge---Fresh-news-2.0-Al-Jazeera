@@ -122,12 +122,13 @@ class AlJazeera:
                     logger.error("Date not found")
             except StaleElementReferenceException:
                 logger.error("Date not found.")
-
-            is_image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
-
-            if is_image:
-                self.picture.append(is_image[0].get_attribute('alt'))
-                self.image_url.append(is_image[0].get_attribute('src'))
+            try:
+                is_image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
+                if is_image:
+                    self.picture.append(is_image[0].get_attribute('alt'))
+                    self.image_url.append(is_image[0].get_attribute('src'))
+            except StaleElementReferenceException:
+                logger.error("Date not found.")
             contain_amount = False
             try:
                 amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
