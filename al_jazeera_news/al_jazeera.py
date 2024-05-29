@@ -97,31 +97,28 @@ class AlJazeera:
         articles = self.browser.find_elements(locator=AlJazeeraLocators.CLICKABLE_CARD)
         for article in articles:
             article_text = ""
-            try:
-                title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).text
-                article_text += title
-                self.title.append(title)
-                is_description = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
-                if is_description:
-                    article_text += is_description[0].text
-                    self.description.append(is_description[0].text)
-                    logger.info("Description found")
-                else:
-                    logger.error("Description not found")
-                is_date = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DATE)
-                if is_date:
-                    logger.info(f'Date found')
-                    self.date.append(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text)
-                else:
-                    logger.error("Date not found")
+            title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).text
+            article_text += title
+            self.title.append(title)
+            is_description = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
+            if is_description:
+                article_text += is_description[0].text
+                self.description.append(is_description[0].text)
+                logger.info("Description found")
+            else:
+                logger.error("Description not found")
+            is_date = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DATE)
+            if is_date:
+                logger.info(f'Date found')
+                self.date.append(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text)
+            else:
+                logger.error("Date not found")
 
-                is_image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
+            is_image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
 
-                if is_image:
-                    self.picture.append(is_image[0].get_attribute('alt'))
-                    self.image_url.append(is_image[0].get_attribute('src'))
-            except StaleElementReferenceException:
-                logger.error("Element not found.")
+            if is_image:
+                self.picture.append(is_image[0].get_attribute('alt'))
+                self.image_url.append(is_image[0].get_attribute('src'))
             contain_amount = False
             try:
                 amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
