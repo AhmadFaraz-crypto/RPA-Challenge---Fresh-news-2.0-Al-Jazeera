@@ -25,7 +25,7 @@ class AlJazeera:
         self.description = []
         self.date = []
         self.picture = []
-        self.image_url = []
+        self.image_urls = []
         self.word_count = []
         self.does_contain_amount = []
         self.search_input = search_input
@@ -126,7 +126,7 @@ class AlJazeera:
                 is_image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
                 if is_image:
                     self.picture.append(is_image[0].get_attribute('alt'))
-                    self.image_url.append(is_image[0].get_attribute('src'))
+                    self.image_urls.append(is_image[0].get_attribute('src'))
             except StaleElementReferenceException:
                 logger.error("Image not found.")
             contain_amount = False
@@ -166,10 +166,11 @@ class AlJazeera:
         logger.info(f"Images directory created successfully.")
         downloader = HTTP()
         lib = Archive()
-        for index, image in enumerate(self.image_url):
+        for index, image in enumerate(self.image_urls):
             downloader.download(image, f'images/image-{index}.jpg')
             logger.info(f"Image downloaded successfully. {image}")
-        lib.archive_folder_with_tar('./images', 'output/images.tar', recursive=True)
-        logger.info(f"Images zip created successfully.")
-        shutil.rmtree("images")
-        logger.info(f"Images directory removed successfully.")
+        if len(self.image_urls):
+            lib.archive_folder_with_tar('./images', 'output/images.tar', recursive=True)
+            logger.info(f"Images zip created successfully.")
+            shutil.rmtree("images")
+            logger.info(f"Images directory removed successfully.")
