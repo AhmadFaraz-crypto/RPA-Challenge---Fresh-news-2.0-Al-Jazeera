@@ -12,10 +12,10 @@ def news_robot_spare_bin_python():
         work_items.get_input_work_item()
         work_item = work_items.get_work_item_variables()
         variables = work_item.get("variables", dict())
-        search_input = variables.get('search_phrase', 'israel war iran')
+        search_input = variables.get('search_phrase', 'Temperature in india')
         months = variables.get('months', 1)
     else:
-        search_input = "US elections"
+        search_input = "Temperature in india"
         months = 1
     news_content = AlJazeera(search_input, months)
     news_content.open_website()
