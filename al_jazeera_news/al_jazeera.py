@@ -113,12 +113,15 @@ class AlJazeera:
                     logger.error("Description not found")
             except StaleElementReferenceException:
                 logger.error("Description not found.")
-            is_date = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DATE)
-            if is_date:
-                logger.info(f'Date found')
-                self.date.append(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text)
-            else:
-                logger.error("Date not found")
+            try:
+                is_date = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DATE)
+                if is_date:
+                    logger.info(f'Date found')
+                    self.date.append(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text)
+                else:
+                    logger.error("Date not found")
+            except StaleElementReferenceException:
+                logger.error("Date not found.")
 
             is_image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
 
