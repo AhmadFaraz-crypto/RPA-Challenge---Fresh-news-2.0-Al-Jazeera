@@ -128,7 +128,7 @@ class AlJazeera:
                     self.picture.append(is_image[0].get_attribute('alt'))
                     self.image_url.append(is_image[0].get_attribute('src'))
             except StaleElementReferenceException:
-                logger.error("Date not found.")
+                logger.error("Image not found.")
             contain_amount = False
             try:
                 amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
