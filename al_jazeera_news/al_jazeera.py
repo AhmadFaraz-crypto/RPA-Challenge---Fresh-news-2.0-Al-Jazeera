@@ -3,12 +3,13 @@ import re
 
 import os
 import shutil
+
 from RPA.HTTP import HTTP
 from dateutil.relativedelta import relativedelta
 from RPA.Browser.Selenium import Selenium
 from RPA.Excel.Files import Files
+from selenium.common import NoSuchElementException
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import StaleElementReferenceException
 from RPA.Archive import Archive
 
 from al_jazeera_news.constants import SITE_URL, NEWS_DATA
@@ -61,7 +62,7 @@ class AlJazeera:
             check search results found or not
             if results not found, error will raise and browser will be close
         """
-        self.browser.set_selenium_implicit_wait(datetime.timedelta(seconds=5))
+        self.browser.wait_until_page_contains_element('//button[@class="show-more-button grid-full-width"]')
         not_results_found = self.browser.is_element_visible(locator=AlJazeeraLocators.SEARCH_RESULTS)
         is_results_visible = self.browser.is_element_visible(locator=AlJazeeraLocators.SEARCH_RESULTS_SUMMARY)
 
@@ -71,64 +72,63 @@ class AlJazeera:
         elif is_results_visible:
             self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_RESULTS_SUMMARY, message="Sort by")
             logger.info("Articles list display successfully.")
-            self.get_article_data()
+            self.check_date_validity()
         else:
             logger.error("Something went wrong.")
             self.browser.close_browser()
 
-    def get_article_data(self):
-        """
-            Get text data from a WebElement based on a locator.
-        """
+    def check_date_validity(self):
         date = self.browser.find_elements(locator=AlJazeeraLocators.GC_DATE)[0].text
         if not check_date(date, self.month_range):
             return None
         while True:
-            self.browser.set_selenium_implicit_wait(datetime.timedelta(seconds=3))
             if self.browser.does_page_contain_element(locator=AlJazeeraLocators.SHOW_MORE_BUTTON):
                 self.browser.execute_javascript("window.scrollTo(0, document.body.scrollHeight);")
                 self.browser.find_element(locator=AlJazeeraLocators.SHOW_MORE_BUTTON).click()
                 date = self.browser.find_elements(locator=AlJazeeraLocators.GC_DATE)[-1].text
                 if not check_date(date, self.month_range):
+                    self.get_article_data()
                     break
             else:
                 break
 
+    def get_article_data(self):
+        """
+            Get text data from a WebElement based on a locator.
+        """
+        self.browser.wait_until_page_contains_element('//button[@class="show-more-button grid-full-width"]')
+        self.browser.scroll_element_into_view('//button[@class="show-more-button grid-full-width"]')
+        self.browser.wait_until_page_contains_element(AlJazeeraLocators.CLICKABLE_CARD, timeout=30, limit=20)
         articles = self.browser.find_elements(locator=AlJazeeraLocators.CLICKABLE_CARD)
         for article in articles:
             article_text = ""
-            try:
+            is_title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).is_displayed()
+            if is_title:
                 title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).text
                 article_text += title
                 self.title.append(title)
-            except StaleElementReferenceException:
-                logger.error("Title not found.")
+            is_description = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION).is_displayed()
+            if is_description:
+                description = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
+                article_text += description[0].text
+                self.description.append(description[0].text)
+                logger.info("Description found")
+            else:
+                logger.error("Description not found")
             try:
-                is_description = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
-                if is_description:
-                    article_text += is_description[0].text
-                    self.description.append(is_description[0].text)
-                    logger.info("Description found")
-                else:
-                    logger.error("Description not found")
-            except StaleElementReferenceException:
-                logger.error("Description not found.")
-            try:
-                is_date = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DATE)
-                if is_date:
-                    logger.info(f'Date found')
-                    self.date.append(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text)
-                else:
-                    logger.error("Date not found")
-            except StaleElementReferenceException:
-                logger.error("Date not found.")
-            try:
-                is_image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
-                if is_image:
-                    self.picture.append(is_image[0].get_attribute('alt'))
-                    self.image_urls.append(is_image[0].get_attribute('src'))
-            except StaleElementReferenceException:
-                logger.error("Image not found.")
+                is_date = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).is_displayed()
+            except NoSuchElementException:
+                is_date = False
+            if is_date:
+                logger.info(f'Date found')
+                self.date.append(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text)
+            else:
+                logger.error("Date not found")
+            is_image = article.find_element(By.CLASS_NAME, AlJazeeraLocators.IMAGE).is_displayed()
+            if is_image:
+                image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
+                self.picture.append(image[0].get_attribute('alt'))
+                self.image_urls.append(image[0].get_attribute('src'))
             contain_amount = False
             try:
                 amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
