@@ -20,10 +20,15 @@ def news_robot_spare_bin_python():
         months = 1
     try:
         news_content = AlJazeera(search_input, months)
+        logger.info("Opening website.")
         news_content.open_website()
+        logger.info("Opening search field.")
         news_content.open_search_field()
+        logger.info("Should visible articles list.")
         news_content.should_visible_article_list()
+        logger.info("Create and save excel sheet.")
         news_content.create_and_save_excel_file()
+        logger.info("Downloading Images.")
         news_content.download_image()
     except Exception as e:
         logger.error(f"An error occurred in automation task: {e}", exc_info=True)
