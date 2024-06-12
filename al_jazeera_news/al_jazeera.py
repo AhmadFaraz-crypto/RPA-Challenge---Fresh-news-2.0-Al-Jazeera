@@ -18,6 +18,7 @@ from utils.check_date import check_date
 
 from service_logger import service_logger as logger
 
+
 class AlJazeera:
     def __init__(self, search_input='', month=0):
         self.browser = Selenium()
@@ -42,20 +43,19 @@ class AlJazeera:
         self.browser.open_available_browser(maximized=True)
         self.browser.go_to(SITE_URL)
         logger.info("Page navigate successfully.")
-        self.open_search_field()
 
     def open_search_field(self):
         """
             Trigger search field from the headers
             Fill search field from the given phrase
         """
-        self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_READER_TEXT, message="Click here to search")
+        self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_READER_TEXT,
+                                               message="Click here to search")
         self.browser.click_button(locator=AlJazeeraLocators.SEARCH_TRIGGER)
         self.browser.input_text(AlJazeeraLocators.SEARCH_INPUT, self.search_input)
         self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_BUTTON, message="Search")
         self.browser.click_button(locator=AlJazeeraLocators.SEARCH_BUTTON)
         logger.info("Search goes successfully.")
-        self.should_visible_article_list()
 
     def should_visible_article_list(self):
         """
@@ -138,7 +138,6 @@ class AlJazeera:
                 logger.error(f"Failed to check amount in text: {str(e)}")
                 contain_amount = False
             self.does_contain_amount.append(str(contain_amount))
-        self.create_and_save_excel_file()
 
     def create_and_save_excel_file(self):
         """
@@ -156,7 +155,6 @@ class AlJazeera:
         self.excel.append_rows_to_worksheet(worksheet_data, header=True)
         self.excel.save_workbook()
         logger.info("Excel file created successfully.")
-        self.download_image()
 
     def download_image(self):
         """
