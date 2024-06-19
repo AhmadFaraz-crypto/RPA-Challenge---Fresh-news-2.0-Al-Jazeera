@@ -1,8 +1,8 @@
 import datetime
 import re
 
-import os
 import shutil
+import time
 
 from RPA.HTTP import HTTP
 from dateutil.relativedelta import relativedelta
@@ -14,27 +14,21 @@ from RPA.Archive import Archive
 
 from al_jazeera_news.constants import SITE_URL, NEWS_DATA
 from al_jazeera_news.locators import AlJazeeraLocators
-from utils.check_date import check_date
+from utils.check_date import check_date, convert_string_to_datetime
 
-from service_logger import service_logger as logger
+from service_logger import  logger
 
 
 class AlJazeera:
     def __init__(self, search_input='', month=0):
         self.browser = Selenium()
         self.excel = Files()
-        self.title = []
-        self.description = []
-        self.date = []
-        self.picture = []
-        self.image_urls = []
-        self.word_count = []
-        self.does_contain_amount = []
+        self.data = []
         self.search_input = search_input
-        self.title_search_phrase_count = 0
-        self.description_search_phrase_count = 0
         self.month_range = datetime.datetime.now() - relativedelta(months=month)
         self.is_amount = False
+        self.downloader = HTTP()
+        self.lib = Archive()
 
     def open_website(self):
         """
@@ -44,7 +38,7 @@ class AlJazeera:
         self.browser.go_to(SITE_URL)
         logger.info("Page navigate successfully.")
 
-    def open_search_field(self):
+    def search_news(self):
         """
             Trigger search field from the headers
             Fill search field from the given phrase
@@ -55,120 +49,77 @@ class AlJazeera:
         self.browser.input_text(AlJazeeraLocators.SEARCH_INPUT, self.search_input)
         self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_BUTTON, message="Search")
         self.browser.click_button(locator=AlJazeeraLocators.SEARCH_BUTTON)
-        logger.info("Search goes successfully.")
+        self.browser.wait_until_page_contains_element('//button[@id="onetrust-accept-btn-handler"]')
+        self.browser.click_element_when_visible('//button[@id="onetrust-accept-btn-handler"]')
+        self.browser.wait_until_page_contains_element('//select[@id="search-sort-option"]')
+        self.browser.select_from_list_by_value('//select[@id="search-sort-option"]', 'date')
+        self.click_show_more_until_available()
 
-    def should_visible_article_list(self):
+    def click_show_more_until_available(self):
         """
-            check search results found or not
-            if results not found, error will raise and browser will be close
+            Open up all the news with clicking show more until is exist no more, its set to 10 at mx by the website
         """
-        self.browser.wait_until_page_contains_element('//button[@class="show-more-button grid-full-width"]')
-        not_results_found = self.browser.is_element_visible(locator=AlJazeeraLocators.SEARCH_RESULTS)
-        is_results_visible = self.browser.is_element_visible(locator=AlJazeeraLocators.SEARCH_RESULTS_SUMMARY)
-
-        if not_results_found:
-            logger.error("Sorry, not results found.")
-            self.browser.close_browser()
-        elif is_results_visible:
-            self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_RESULTS_SUMMARY, message="Sort by")
-            logger.info("Articles list display successfully.")
-            self.check_date_validity()
-        else:
-            logger.error("Something went wrong.")
-            self.browser.close_browser()
-
-    def check_date_validity(self):
-        date = self.browser.find_elements(locator=AlJazeeraLocators.GC_DATE)[0].text
-        if not check_date(date, self.month_range):
-            return None
-        while True:
-            if self.browser.does_page_contain_element(locator=AlJazeeraLocators.SHOW_MORE_BUTTON):
+        self.browser.wait_until_page_contains_element(AlJazeeraLocators.SHOW_MORE_BUTTON, timeout=30)
+        tries = 10
+        while tries:
+            try:
                 self.browser.execute_javascript("window.scrollTo(0, document.body.scrollHeight);")
-                self.browser.find_element(locator=AlJazeeraLocators.SHOW_MORE_BUTTON).click()
-                date = self.browser.find_elements(locator=AlJazeeraLocators.GC_DATE)[-1].text
-                if not check_date(date, self.month_range):
-                    self.get_article_data()
-                    break
-            else:
+                self.browser.click_element_when_visible(AlJazeeraLocators.SHOW_MORE_BUTTON)
+                self.browser.wait_until_element_is_visible(AlJazeeraLocators.SHOW_MORE_BUTTON)
+                tries -= 1
+            except AssertionError:
                 break
 
     def get_article_data(self):
         """
-            Get text data from a WebElement based on a locator.
+            Get news data from news lists.
         """
-        self.browser.wait_until_page_contains_element('//button[@class="show-more-button grid-full-width"]')
-        self.browser.scroll_element_into_view('//button[@class="show-more-button grid-full-width"]')
-        self.browser.wait_until_page_contains_element(AlJazeeraLocators.CLICKABLE_CARD, timeout=30, limit=20)
+        time.sleep(4)
         articles = self.browser.find_elements(locator=AlJazeeraLocators.CLICKABLE_CARD)
         for article in articles:
-            article_text = ""
-            is_title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).is_displayed()
-            if is_title:
+            try:
+                news_obj = {}
                 title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).text
-                article_text += title
-                self.title.append(title)
-            is_description = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION).is_displayed()
-            if is_description:
-                description = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
-                article_text += description[0].text
-                self.description.append(description[0].text)
-                logger.info("Description found")
-            else:
-                logger.error("Description not found")
-            try:
-                is_date = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).is_displayed()
-            except NoSuchElementException:
-                is_date = False
-            if is_date:
-                logger.info(f'Date found')
-                self.date.append(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text)
-            else:
-                logger.error("Date not found")
-            is_image = article.find_element(By.CLASS_NAME, AlJazeeraLocators.IMAGE).is_displayed()
-            if is_image:
-                image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
-                self.picture.append(image[0].get_attribute('alt'))
-                self.image_urls.append(image[0].get_attribute('src'))
-            contain_amount = False
-            try:
+                news_obj['title'] = title
+                logger.info(f'Getting news with title {title}')
+                is_description = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION).is_displayed()
+                if is_description:
+                    description = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
+                    news_obj['description'] = description[0].text.split('...', 1)[-1]
+                else:
+                    news_obj['description'] = ''
+                try:
+                    is_date = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).is_displayed()
+                except NoSuchElementException:
+                    is_date = False
+                if is_date:
+                    if not check_date(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text, self.month_range):
+                        return None
+                    news_obj['date'] = convert_string_to_datetime(
+                        article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text
+                    )
+                else:
+                    news_obj['date'] = ""
+                is_image = article.find_element(By.CLASS_NAME, AlJazeeraLocators.IMAGE).is_displayed()
+                if is_image:
+                    image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
+                    self.downloader.download(image[0].get_attribute('src'), f'images/{news_obj["title"][:20]}.jpg')
+                    news_obj['image'] = f'images/{news_obj["title"][:10]}.jpg'
                 amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
-                match = re.findall(amount_re_pattern, article_text)
-                contain_amount = bool(match)
+                match = re.findall(amount_re_pattern, news_obj['description'] + news_obj['title'])
+                news_obj['does_contain_amount'] = str(bool(match))
+                news_obj['Word Count'] = (news_obj['description'] + news_obj['title']).count(self.search_input)
+                self.data.append(news_obj)
             except Exception as e:
-                logger.error(f"Failed to check amount in text: {str(e)}")
-                contain_amount = False
-            self.does_contain_amount.append(str(contain_amount))
+                logger.warning(f'Skipped news due to error {e}')
 
-    def create_and_save_excel_file(self):
+    def create_report(self):
         """
-            Create and save excel file
+            Create and save excel file and images zip
         """
         self.excel.create_workbook(path=NEWS_DATA, fmt="xlsx")
-        worksheet_data = {
-            "Title": self.title,
-            "Description": self.description,
-            "Date": self.date,
-            "Picture": self.picture,
-            "Title and description search phrase count": self.word_count,
-            "Is does contain amount": self.does_contain_amount
-        }
-        self.excel.append_rows_to_worksheet(worksheet_data, header=True)
+        self.excel.append_rows_to_worksheet(self.data, header=True)
         self.excel.save_workbook()
+        self.lib.archive_folder_with_tar('./images', 'output/images.tar', recursive=True)
+        shutil.rmtree("images")
         logger.info("Excel file created successfully.")
-
-    def download_image(self):
-        """
-            Download article image with image text
-        """
-        os.mkdir("images")
-        logger.info(f"Images directory created successfully.")
-        downloader = HTTP()
-        lib = Archive()
-        for index, image in enumerate(self.image_urls):
-            downloader.download(image, f'images/image-{index}.jpg')
-            logger.info(f"Image downloaded successfully. {image}")
-        if len(self.image_urls):
-            lib.archive_folder_with_tar('./images', 'output/images.tar', recursive=True)
-            logger.info(f"Images zip created successfully.")
-            shutil.rmtree("images")
-            logger.info(f"Images directory removed successfully.")
