@@ -9,4 +9,5 @@ dependencies:
   - python=3.10.12                # https://pyreadiness.org/3.10
 
   - pip:
-    - rpaframework==28.0.0        # https://rpaframework.org/releasenotes.html
+    - rpaframework==28.6.0        # https://rpaframework.org/releasenotes.html
+    - python-slugify==8.0.4

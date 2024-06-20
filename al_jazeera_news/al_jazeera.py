@@ -16,11 +16,18 @@ from al_jazeera_news.constants import SITE_URL, NEWS_DATA
 from al_jazeera_news.locators import AlJazeeraLocators
 from utils.check_date import check_date, convert_string_to_datetime
 
-from service_logger import  logger
+from service_logger import logger
 
 
 class AlJazeera:
     def __init__(self, search_input='', month=0):
+        """
+        Initializes an instance of AlJazeera with optional search input and month range.
+
+        Args:
+            search_input (str, optional): Search input string for queries (default is '').
+            month (int, optional): Number of months back from current date to consider (default is 0).
+        """
         self.browser = Selenium()
         self.excel = Files()
         self.data = []
@@ -80,8 +87,7 @@ class AlJazeera:
         time.sleep(4)
         amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
         articles = self.browser.find_elements(locator=AlJazeeraLocators.CLICKABLE_CARD)
-        image_index = 1
-        for article in articles:
+        for index, article in enumerate(articles):
             try:
                 news_obj = {}
                 title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).text
@@ -89,8 +95,8 @@ class AlJazeera:
                 logger.info(f'Getting news with title {title}')
                 is_description = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION).is_displayed()
                 if is_description:
-                    description = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
-                    news_obj['Description'] = description[0].text.split('...', 1)[-1]
+                    description = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
+                    news_obj['Description'] = description.text.split('...', 1)[-1]
                 else:
                     news_obj['Description'] = ''
                 if not check_date(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text, self.month_range):
@@ -98,12 +104,11 @@ class AlJazeera:
                 news_obj['Date'] = convert_string_to_datetime(
                     article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text
                 ).strftime('%Y/%m/%d')
-                image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
-                file_name = slugify(image[0].get_attribute('alt'), separator='_')
+                image = article.find_element(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
+                file_name = slugify(image.get_attribute('alt'), separator='_')
                 if not file_name:
-                    file_name = f"image_{image_index}"
-                    image_index += 1
-                self.downloader.download(image[0].get_attribute('src'), f'images/{file_name}.jpg')
+                    file_name = f"image_{index}"
+                self.downloader.download(image.get_attribute('src'), f'images/{file_name}.jpg')
                 news_obj['Image'] = f'images/{file_name}.jpg'
                 match = re.findall(amount_re_pattern, news_obj['Description'] + news_obj['Title'])
                 news_obj['Does Contain Amount'] = str(bool(match))

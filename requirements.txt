@@ -1,2 +1,2 @@
-rpaframework==28.5.1
+rpaframework==28.6.0
 python-slugify==8.0.4
