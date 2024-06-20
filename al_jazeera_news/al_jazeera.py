@@ -8,9 +8,9 @@ from RPA.HTTP import HTTP
 from dateutil.relativedelta import relativedelta
 from RPA.Browser.Selenium import Selenium
 from RPA.Excel.Files import Files
-from selenium.common import NoSuchElementException
 from selenium.webdriver.common.by import By
 from RPA.Archive import Archive
+from slugify import slugify
 
 from al_jazeera_news.constants import SITE_URL, NEWS_DATA
 from al_jazeera_news.locators import AlJazeeraLocators
@@ -26,7 +26,6 @@ class AlJazeera:
         self.data = []
         self.search_input = search_input
         self.month_range = datetime.datetime.now() - relativedelta(months=month)
-        self.is_amount = False
         self.downloader = HTTP()
         self.lib = Archive()
 
@@ -43,22 +42,25 @@ class AlJazeera:
             Trigger search field from the headers
             Fill search field from the given phrase
         """
+        logger.info('Searching news with search input.')
         self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_READER_TEXT,
                                                message="Click here to search")
         self.browser.click_button(locator=AlJazeeraLocators.SEARCH_TRIGGER)
         self.browser.input_text(AlJazeeraLocators.SEARCH_INPUT, self.search_input)
         self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_BUTTON, message="Search")
         self.browser.click_button(locator=AlJazeeraLocators.SEARCH_BUTTON)
-        self.browser.wait_until_page_contains_element('//button[@id="onetrust-accept-btn-handler"]')
-        self.browser.click_element_when_visible('//button[@id="onetrust-accept-btn-handler"]')
-        self.browser.wait_until_page_contains_element('//select[@id="search-sort-option"]')
-        self.browser.select_from_list_by_value('//select[@id="search-sort-option"]', 'date')
+        logger.info('Sorting news with date.')
+        self.browser.wait_until_page_contains_element(AlJazeeraLocators.COOKIES_ACCEPT)
+        self.browser.click_element_when_visible(AlJazeeraLocators.COOKIES_ACCEPT)
+        self.browser.wait_until_page_contains_element(AlJazeeraLocators.SORT)
+        self.browser.select_from_list_by_value(AlJazeeraLocators.SORT, 'date')
         self.click_show_more_until_available()
 
     def click_show_more_until_available(self):
         """
             Open up all the news with clicking show more until is exist no more, its set to 10 at mx by the website
         """
+        logger.info('Expending news list.')
         self.browser.wait_until_page_contains_element(AlJazeeraLocators.SHOW_MORE_BUTTON, timeout=30)
         tries = 10
         while tries:
@@ -69,46 +71,43 @@ class AlJazeera:
                 tries -= 1
             except AssertionError:
                 break
+        logger.info('Successfully expended news list.')
 
     def get_article_data(self):
         """
             Get news data from news lists.
         """
         time.sleep(4)
+        amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
         articles = self.browser.find_elements(locator=AlJazeeraLocators.CLICKABLE_CARD)
+        image_index = 1
         for article in articles:
             try:
                 news_obj = {}
                 title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).text
-                news_obj['title'] = title
+                news_obj['Title'] = title
                 logger.info(f'Getting news with title {title}')
                 is_description = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION).is_displayed()
                 if is_description:
                     description = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.DESCRIPTION)
-                    news_obj['description'] = description[0].text.split('...', 1)[-1]
+                    news_obj['Description'] = description[0].text.split('...', 1)[-1]
                 else:
-                    news_obj['description'] = ''
-                try:
-                    is_date = article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).is_displayed()
-                except NoSuchElementException:
-                    is_date = False
-                if is_date:
-                    if not check_date(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text, self.month_range):
-                        return None
-                    news_obj['date'] = convert_string_to_datetime(
-                        article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text
-                    )
-                else:
-                    news_obj['date'] = ""
-                is_image = article.find_element(By.CLASS_NAME, AlJazeeraLocators.IMAGE).is_displayed()
-                if is_image:
-                    image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
-                    self.downloader.download(image[0].get_attribute('src'), f'images/{news_obj["title"][:20]}.jpg')
-                    news_obj['image'] = f'images/{news_obj["title"][:10]}.jpg'
-                amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
-                match = re.findall(amount_re_pattern, news_obj['description'] + news_obj['title'])
-                news_obj['does_contain_amount'] = str(bool(match))
-                news_obj['Word Count'] = (news_obj['description'] + news_obj['title']).count(self.search_input)
+                    news_obj['Description'] = ''
+                if not check_date(article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text, self.month_range):
+                    return None
+                news_obj['Date'] = convert_string_to_datetime(
+                    article.find_element(By.CLASS_NAME, AlJazeeraLocators.DATE).text
+                ).strftime('%Y/%m/%d')
+                image = article.find_elements(By.CLASS_NAME, AlJazeeraLocators.IMAGE)
+                file_name = slugify(image[0].get_attribute('alt'), separator='_')
+                if not file_name:
+                    file_name = f"image_{image_index}"
+                    image_index += 1
+                self.downloader.download(image[0].get_attribute('src'), f'images/{file_name}.jpg')
+                news_obj['Image'] = f'images/{file_name}.jpg'
+                match = re.findall(amount_re_pattern, news_obj['Description'] + news_obj['Title'])
+                news_obj['Does Contain Amount'] = str(bool(match))
+                news_obj['Word Count'] = (news_obj['Description'] + news_obj['Title']).count(self.search_input)
                 self.data.append(news_obj)
             except Exception as e:
                 logger.warning(f'Skipped news due to error {e}')
