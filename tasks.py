@@ -23,6 +23,7 @@ if not os.path.exists('output'):
 if not os.path.exists('images'):
     os.mkdir('images')
 
+
 def news_scrapper():
     try:
         logger.info("Starting Process.")
