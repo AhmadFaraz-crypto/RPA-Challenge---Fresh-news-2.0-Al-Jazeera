@@ -3,7 +3,7 @@ import os
 from RPA.Robocorp.WorkItems import WorkItems
 
 from al_jazeera_news.al_jazeera import AlJazeera
-from service_logger import logger
+from utils.service_logger import logger
 
 local_process = os.environ.get("RC_WORKSPACE_ID") is None
 if not local_process:

@@ -2,7 +2,7 @@ import datetime
 import re
 
 import shutil
-import time
+from typing import List
 
 from RPA.HTTP import HTTP
 from dateutil.relativedelta import relativedelta
@@ -11,14 +11,13 @@ from RPA.Excel.Files import Files
 from selenium.common import NoSuchElementException
 from selenium.webdriver.common.by import By
 from RPA.Archive import Archive
-from slugify import slugify
 
 from al_jazeera_news.constants import SITE_URL, NEWS_DATA
 from al_jazeera_news.exceptions import AljazeeraNewsDateReachedException
 from al_jazeera_news.locators import AlJazeeraLocators
-from utils.check_date import check_date, convert_string_to_datetime
+from al_jazeera_news.utils import check_date, convert_string_to_datetime
 
-from service_logger import logger
+from utils.service_logger import logger
 
 amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
 
@@ -38,20 +37,33 @@ class AlJazeera:
         self.search_input = search_input
         self.month_range = datetime.datetime.now() - relativedelta(months=month)
         self.downloader = HTTP()
+        self.article_counter = 0
         self.lib = Archive()
 
-    def open_website(self):
+    def open_website(self) -> None:
         """
-            Navigates to the given URL
+            Opens a web browser and navigates to a specified URL.
+
+            This method initializes a web browser, maximizes its window, and then navigates
+            to the predefined SITE_URL constant.
+
+            Returns:
+                None
         """
         self.browser.open_available_browser(maximized=True)
         self.browser.go_to(SITE_URL)
         logger.info("Page navigate successfully.")
 
-    def search_news(self):
+    def search_news(self) -> None:
         """
-            Trigger search field from the headers
-            Fill search field from the given phrase
+            Performs a news search and sorts results by date on the Al Jazeera website.
+
+            This method triggers the search functionality on the website header, fills in the search field
+            with a specified search phrase, clicks the search button, and then sorts
+            the search results by date.
+
+            Returns:
+                None
         """
         logger.info('Searching news with search input.')
         self.browser.element_should_be_visible(locator=AlJazeeraLocators.SEARCH_READER_TEXT,
@@ -66,24 +78,10 @@ class AlJazeera:
         self.browser.wait_until_page_contains_element(AlJazeeraLocators.SORT)
         self.browser.select_from_list_by_value(AlJazeeraLocators.SORT, 'date')
 
-    def click_show_more_until_available(self):
+    def process_news_articles(self, articles: List) -> None:
         """
-            Open up all the news with clicking show more until is exist no more, its set to 10 at mx by the website
+            Processes a list of news articles from a webpage, extracting relevant information and storing.
         """
-        logger.info('Expending news list.')
-        self.browser.wait_until_page_contains_element(AlJazeeraLocators.SHOW_MORE_BUTTON, timeout=30)
-        tries = 10
-        while tries:
-            try:
-                self.browser.execute_javascript("window.scrollTo(0, document.body.scrollHeight);")
-                self.browser.click_element_when_visible(AlJazeeraLocators.SHOW_MORE_BUTTON)
-                self.browser.wait_until_element_is_visible(AlJazeeraLocators.SHOW_MORE_BUTTON)
-                tries -= 1
-            except AssertionError:
-                break
-        logger.info('Successfully expended news list.')
-
-    def process_news_articles(self, articles):
         for index, article in enumerate(articles):
             news_obj = {}
             title = article.find_element(By.CLASS_NAME, AlJazeeraLocators.TITLE).text
@@ -112,27 +110,26 @@ class AlJazeera:
             news_obj['Word Count'] = (news_obj['Description'] + news_obj['Title']).count(self.search_input)
             self.data.append(news_obj)
 
-    def get_article_data(self):
+    def get_article_data(self) -> None:
         """
             Get news data from news lists.
         """
-        start = 0
-        time.sleep(4)
-        for _ in range(10):
+        articles_per_page = 10
+        try:
+            articles = self.browser.find_elements(locator=AlJazeeraLocators.CLICKABLE_CARD)
+            self.process_news_articles(articles[self.article_counter:self.article_counter + articles_per_page])
+            self.article_counter += articles_per_page
             try:
-                articles = self.browser.find_elements(locator=AlJazeeraLocators.CLICKABLE_CARD)
-                self.process_news_articles(articles[start:start+10])
-                start += 10
-                try:
-                    self.browser.execute_javascript("window.scrollTo(0, document.body.scrollHeight);")
-                    self.browser.click_element_when_visible(AlJazeeraLocators.SHOW_MORE_BUTTON)
-                    self.browser.wait_until_element_is_visible(AlJazeeraLocators.SHOW_MORE_BUTTON)
-                except AssertionError as e:
-                    break
-            except AljazeeraNewsDateReachedException:
-                break
+                self.browser.execute_javascript("window.scrollTo(0, document.body.scrollHeight);")
+                self.browser.click_element_when_visible(AlJazeeraLocators.SHOW_MORE_BUTTON)
+                self.browser.wait_until_element_is_visible(AlJazeeraLocators.SHOW_MORE_BUTTON)
+                self.get_article_data()
+            except AssertionError as e:
+                logger.info("Could not find the show more button.")
+        except AljazeeraNewsDateReachedException:
+            ...
 
-    def create_report(self):
+    def create_report(self) -> None:
         """
             Create and save excel file and images zip
         """
