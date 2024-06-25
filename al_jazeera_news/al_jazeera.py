@@ -2,6 +2,7 @@ import datetime
 import re
 
 import shutil
+import time
 from typing import List
 
 from RPA.HTTP import HTTP
@@ -114,6 +115,7 @@ class AlJazeera:
         """
             Get news data from news lists.
         """
+        self.browser.wait_until_page_contains_element(AlJazeeraLocators.SHOW_MORE_BUTTON, 5)
         articles_per_page = 10
         try:
             articles = self.browser.find_elements(locator=AlJazeeraLocators.CLICKABLE_CARD)
