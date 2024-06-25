@@ -1,7 +1,10 @@
-import dateutil.parser
+import datetime
+from typing import Optional
+
+from dateutil.parser import parse
 
 
-def check_date(date, month_range):
+def is_date_in_given_range(date: str, month_range: datetime.datetime) -> bool:
     """
     Check if a given date is within a specified month range.
 
@@ -19,7 +22,7 @@ def check_date(date, month_range):
     return True
 
 
-def convert_string_to_datetime(date):
+def convert_string_to_datetime(date: str) -> Optional[datetime.datetime]:
     """
     Converts a string representation of a date/time into a datetime object.
 
@@ -30,12 +33,13 @@ def convert_string_to_datetime(date):
         datetime.datetime: A datetime object representing the parsed date/time.
 
     """
-    if "on" in date.lower():
-        date = date.lower().split('on')[-1]
-    elif "updated" in date.lower():
-        date = date.lower().split('updated')[-1]
-    elif "update" in date.lower():
-        date = date.lower().split('update')[-1]
+    if date:
+        if "on" in date.lower():
+            date = date.lower().split('on')[-1]
+        elif "updated" in date.lower():
+            date = date.lower().split('updated')[-1]
+        elif "update" in date.lower():
+            date = date.lower().split('update')[-1]
 
-    return dateutil.parser.parse(date)
+        return parse(date)
 

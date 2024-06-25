@@ -33,7 +33,7 @@ def news_scrapper():
         logger.info("Searching news.")
         news_content.search_news()
         logger.info("Reading News.")
-        news_content.get_article_data()
+        news_content.get_articles_data()
         logger.info("Creating report.")
         news_content.create_report()
     except Exception as e:

@@ -16,6 +16,7 @@ class AlJazeeraLocators:
     """
         Locators related to search results.
     """
+    MAIN_CONTENT_AREA = '//main[@id="main-content-area"]'
 
     SEARCH_RESULTS = "class:search-results__no-results"
     SEARCH_RESULTS_SUMMARY = "class:search-summary__options-title"
